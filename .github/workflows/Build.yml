@@ -1,5 +1,4 @@
-
-name: Native FluidGlass LSPosed - BUILD V2
+name: Native FluidGlass LSPosed - BUILD V3
 
 on:
   workflow_dispatch:
@@ -32,34 +31,30 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Find Android SDK Manager
+      - name: Locate Android SDK Manager
         shell: bash
         run: |
-          echo "Searching for sdkmanager..."
-
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
-            -type f -name sdkmanager 2>/dev/null | head -n 1)
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1)
 
           if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found"
-            find "$ANDROID_HOME" -maxdepth 5 -type f | head -100
+            echo "ERROR: sdkmanager was not found."
+            find "$ANDROID_HOME/cmdline-tools" -maxdepth 4 -type f 2>/dev/null | head -50
             exit 1
           fi
 
-          chmod +x "$SDKMANAGER"
-
+          echo "Found SDK Manager: $SDKMANAGER"
+          ls -l "$SDKMANAGER"
           echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
-
-          echo "Found: $SDKMANAGER"
 
       - name: Accept Android licenses
         shell: bash
         run: |
-          yes | "$SDKMANAGER" --licenses || true
+          yes | bash "$SDKMANAGER" --licenses || true
 
       - name: Install Android packages
+        shell: bash
         run: |
-          "$SDKMANAGER" --install \
+          bash "$SDKMANAGER" --install \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "platform-tools"
@@ -71,8 +66,7 @@ jobs:
 
       - name: Compile APK
         working-directory: source
-        run: |
-          gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug
 
       - name: Verify APK
         run: |
