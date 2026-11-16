@@ -1,5 +1,5 @@
 
-name: Native FluidGlass LSPosed - BUILD V4
+name: Native FluidGlass LSPosed - BUILD V5
 
 on:
   workflow_dispatch:
@@ -38,23 +38,17 @@ jobs:
         shell: bash
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1)
-
           if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager was not found."
-            find "$ANDROID_HOME/cmdline-tools" -maxdepth 4 -type f 2>/dev/null | head -50
+            echo "ERROR: sdkmanager not found"
             exit 1
           fi
-
-          echo "Found SDK Manager: $SDKMANAGER"
           echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
 
       - name: Accept Android licenses
-        shell: bash
         run: |
           yes | bash "$SDKMANAGER" --licenses || true
 
       - name: Install Android packages
-        shell: bash
         run: |
           bash "$SDKMANAGER" --install \
             "platforms;android-36" \
@@ -71,36 +65,34 @@ jobs:
         run: |
           gradle --no-daemon clean assembleDebug
 
-      - name: Verify APK contents
+      - name: Deep APK inspection
         shell: bash
         run: |
           APK="source/app/build/outputs/apk/debug/app-debug.apk"
 
-          test -f "$APK"
-
-          echo "===== APK FILE SIZE ====="
+          echo "===== APK SIZE ====="
           ls -lh "$APK"
+          stat "$APK"
 
-          echo "===== APK CONTENTS ====="
+          echo "===== ZIP CONTENTS ====="
           unzip -l "$APK"
+
+          echo "===== DEX FILE DETAILS ====="
+          unzip -p "$APK" classes.dex > /tmp/classes.dex
+          ls -lh /tmp/classes.dex
+          file /tmp/classes.dex
+
+          echo "===== DEX HEADER ====="
+          xxd -l 112 /tmp/classes.dex
+
+          echo "===== DEX CLASSES ====="
+          "$ANDROID_HOME/build-tools/36.0.0/dexdump" /tmp/classes.dex | head -100
+
+          echo "===== LSPOSED ENTRY ====="
+          unzip -p "$APK" assets/xposed_init
 
           echo "===== APK INTEGRITY ====="
           unzip -t "$APK"
-
-          echo "===== CHECK REQUIRED FILES ====="
-          unzip -l "$APK" | grep -E 'classes.dex|assets/xposed_init|AndroidManifest.xml'
-
-          unzip -l "$APK" | grep -q 'classes.dex' || {
-            echo "ERROR: classes.dex is missing. Java code was not packaged."
-            exit 1
-          }
-
-          unzip -l "$APK" | grep -q 'assets/xposed_init' || {
-            echo "ERROR: LSPosed entry file is missing."
-            exit 1
-          }
-
-          echo "APK passed the basic packaging checks."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
